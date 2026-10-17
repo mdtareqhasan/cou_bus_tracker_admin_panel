@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { teacherAPI } from '../api';
-import { CheckCircle, X, XCircle, ShieldCheck, Search, Users, Eye, Trash2 } from 'lucide-react';
+import { CheckCircle, X, XCircle, Search, Users, Eye, Trash2 } from 'lucide-react';
 import IdCardThumb from '../components/IdCardThumb';
 
 export default function TeachersPage() {
@@ -15,7 +15,8 @@ export default function TeachersPage() {
   };
   useEffect(load, []);
 
-  const handleVerify = async (id) => { await teacherAPI.verify(id); load(); };
+  // Verification is no longer an admin action: it follows automatically from
+  // department/employee ID/designation being filled in during registration.
   const handleToggle = async (id) => { await teacherAPI.toggleActive(id); load(); };
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete teacher "${name}"? This will permanently remove their account and ID card image.`)) return;
@@ -24,18 +25,19 @@ export default function TeachersPage() {
   };
 
   const filtered = (filter === 'pending' ? teachers.filter(t => !t.isVerified)
-    : filter === 'phone-verified' ? teachers.filter(t => t.isPhoneVerified)
+    : filter === 'verified' ? teachers.filter(t => t.isVerified)
     : teachers
-  ).filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    (t.phone && t.phone.toLowerCase().includes(search.toLowerCase())) ||
-    (t.department && t.department.toLowerCase().includes(search.toLowerCase()))
-  );
+  ).filter(t => {
+    const q = search.toLowerCase();
+    // Every field is optional until registration completes, so guard them all.
+    return [t.name, t.email, t.teacherId, t.designation, t.department]
+      .some(value => value && value.toLowerCase().includes(q));
+  });
 
   const filters = [
     { key: 'all', label: 'All', count: teachers.length },
     { key: 'pending', label: 'Pending', count: teachers.filter(t => !t.isVerified).length },
-    { key: 'phone-verified', label: 'Phone Verified', count: teachers.filter(t => t.isPhoneVerified).length },
+    { key: 'verified', label: 'Verified', count: teachers.filter(t => t.isVerified).length },
   ];
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-200 border-t-emerald-600" /></div>;
@@ -71,7 +73,7 @@ export default function TeachersPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 border-b border-gray-100">
               <tr>
-                {['Teacher', 'Teacher ID', 'Designation', 'Department', 'Phone', 'Phone Verified', 'Status', 'Actions'].map(h => (
+                {['Teacher', 'Email', 'Employee ID', 'Designation', 'Department', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -88,30 +90,25 @@ export default function TeachersPage() {
                       />
                       <div className="min-w-0">
                         <p className="font-semibold text-gray-900 truncate">{teacher.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{teacher.phone || 'No phone'}</p>
+                        <p className="text-xs text-gray-400 truncate">{teacher.email || 'No email'}</p>
                       </div>
                     </div>
                   </td>
+                  <td className="px-6 py-4 text-gray-700">{teacher.email || '-'}</td>
                   <td className="px-6 py-4 font-mono text-gray-700">{teacher.teacherId || '-'}</td>
                   <td className="px-6 py-4 text-gray-600">{teacher.designation || '-'}</td>
                   <td className="px-6 py-4 text-gray-600">{teacher.department || '-'}</td>
-                  <td className="px-6 py-4 text-gray-600">{teacher.phone || '-'}</td>
-                  <td className="px-6 py-4">
-                    <span className={`badge ${teacher.isPhoneVerified ? 'badge-green' : 'badge-orange'}`}>
-                      {teacher.isPhoneVerified ? 'Verified' : 'Unverified'}
-                    </span>
-                  </td>
                   <td className="px-6 py-4">
                     <span className={`badge ${teacher.isVerified ? 'badge-green' : 'badge-yellow'}`}>
                       {teacher.isVerified ? 'Verified' : 'Pending'}
                     </span>
+                    {!teacher.isVerified && (
+                      <span className="block mt-1 text-xs text-orange-500">Registration incomplete</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1">
                       {teacher.idCardImageUrl && <button onClick={() => setViewCard(teacher)} className="btn-icon hover:bg-teal-50 text-emerald-600" title="View ID Card"><Eye className="w-4 h-4" /></button>}
-                      {!teacher.isVerified && (
-                        <button onClick={() => handleVerify(teacher.id)} className="btn-icon hover:bg-green-50 text-green-600" title="Verify"><ShieldCheck className="w-4 h-4" /></button>
-                      )}
                       <button onClick={() => handleToggle(teacher.id)} className={`btn-icon ${teacher.isActive ? 'hover:bg-green-50 text-green-600' : 'hover:bg-red-50 text-red-600'}`}>
                         {teacher.isActive ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                       </button>

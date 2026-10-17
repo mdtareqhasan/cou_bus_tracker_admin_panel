@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { studentAPI } from '../api';
-import { CheckCircle, X, XCircle, ShieldCheck, Eye, Search, GraduationCap, Trash2 } from 'lucide-react';
+import { CheckCircle, X, XCircle, Eye, Search, GraduationCap, Trash2 } from 'lucide-react';
 import IdCardThumb from '../components/IdCardThumb';
 
 export default function StudentsPage() {
@@ -15,7 +15,8 @@ export default function StudentsPage() {
   };
   useEffect(load, []);
 
-  const handleVerify = async (id) => { await studentAPI.verify(id); load(); };
+  // Verification is no longer an admin action: it follows automatically from
+  // department/roll/session being filled in during registration.
   const handleToggle = async (id) => { await studentAPI.toggleActive(id); load(); };
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete student "${name}"? This will permanently remove their account and ID card image.`)) return;
@@ -25,22 +26,20 @@ export default function StudentsPage() {
 
   const filtered = (filter === 'pending' ? students.filter(s => !s.isVerified)
     : filter === 'verified' ? students.filter(s => s.isVerified)
-    : filter === 'phone-verified' ? students.filter(s => s.isPhoneVerified)
-    : filter === 'phone-unverified' ? students.filter(s => !s.isPhoneVerified)
     : students
   ).filter(s => {
     const q = search.toLowerCase();
-    // Every field is optional: Google sign-ups have no phone/roll/session yet,
-    // so unguarded access here used to throw and blank the whole page.
-    return [s.name, s.phone, s.email, s.rollNumber, s.department, s.session]
+    // Every field is optional: a sign-up that hasn't completed registration
+    // has no roll/session yet, so unguarded access here used to throw and
+    // blank the whole page.
+    return [s.name, s.email, s.rollNumber, s.department, s.session]
       .some(value => value && value.toLowerCase().includes(q));
   });
 
   const filters = [
     { key: 'all', label: 'All', count: students.length },
     { key: 'pending', label: 'Pending', count: students.filter(s => !s.isVerified).length },
-    { key: 'phone-verified', label: 'Phone Verified', count: students.filter(s => s.isPhoneVerified).length },
-    { key: 'phone-unverified', label: 'Phone Unverified', count: students.filter(s => !s.isPhoneVerified).length },
+    { key: 'verified', label: 'Verified', count: students.filter(s => s.isVerified).length },
   ];
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-200 border-t-emerald-600" /></div>;
@@ -95,7 +94,7 @@ export default function StudentsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 border-b border-gray-100">
               <tr>
-                {['Student', 'Roll No', 'Department', 'Session', 'Contact', 'Status', 'Actions'].map(h => (
+                {['Student', 'Email', 'Roll No', 'Department', 'Session', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -112,33 +111,26 @@ export default function StudentsPage() {
                       />
                       <div className="min-w-0">
                         <p className="font-semibold text-gray-900 truncate">{student.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{student.phone || student.email || 'No contact'}</p>
+                        <p className="text-xs text-gray-400 truncate">{student.rollNumber || 'No roll number'}</p>
                       </div>
                     </div>
                   </td>
+                  <td className="px-6 py-4 text-gray-700">{student.email || '-'}</td>
                   <td className="px-6 py-4 font-mono text-sm text-gray-700">{student.rollNumber || '-'}</td>
                   <td className="px-6 py-4 text-gray-600">{student.department || '-'}</td>
                   <td className="px-6 py-4 text-gray-600">{student.session || '-'}</td>
                   <td className="px-6 py-4">
-                    <span className={`badge ${student.isPhoneVerified ? 'badge-green' : 'badge-orange'}`}>
-                      {student.phone || 'No phone'}
-                    </span>
-                    <span className={`ml-1 text-xs ${student.isPhoneVerified ? 'text-green-600' : 'text-orange-500'}`}>
-                      {student.isPhoneVerified ? '✓ Verified' : '✗ Unverified'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
                     <span className={`badge ${student.isVerified ? 'badge-green' : 'badge-yellow'}`}>
                       {student.isVerified ? 'Verified' : 'Pending'}
                     </span>
+                    {!student.isVerified && (
+                      <span className="block mt-1 text-xs text-orange-500">Registration incomplete</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1">
                       {student.idCardImageUrl && (
                         <button onClick={() => setViewCard(student)} className="btn-icon hover:bg-teal-50 text-emerald-600" title="View ID Card"><Eye className="w-4 h-4" /></button>
-                      )}
-                      {!student.isVerified && (
-                        <button onClick={() => handleVerify(student.id)} className="btn-icon hover:bg-green-50 text-green-600" title="Verify"><ShieldCheck className="w-4 h-4" /></button>
                       )}
                       <button onClick={() => handleToggle(student.id)} className={`btn-icon ${student.isActive ? 'hover:bg-green-50 text-green-600' : 'hover:bg-red-50 text-red-600'}`}>
                         {student.isActive ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
