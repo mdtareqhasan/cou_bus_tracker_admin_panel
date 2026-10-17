@@ -8,6 +8,17 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+
+    build: {
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
+        },
+      },
+    },
+
     server: {
       port: 5173,
       proxy: {
@@ -18,8 +29,8 @@ export default defineConfig(({ mode }) => {
         '/uploads': {
           target: backendTarget,
           changeOrigin: true,
-        }
-      }
-    }
+        },
+      },
+    },
   }
 })
