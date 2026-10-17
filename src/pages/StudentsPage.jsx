@@ -28,12 +28,13 @@ export default function StudentsPage() {
     : filter === 'phone-verified' ? students.filter(s => s.isPhoneVerified)
     : filter === 'phone-unverified' ? students.filter(s => !s.isPhoneVerified)
     : students
-  ).filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    (s.phone && s.phone.toLowerCase().includes(search.toLowerCase())) ||
-    s.studentId.toLowerCase().includes(search.toLowerCase()) ||
-    s.department.toLowerCase().includes(search.toLowerCase())
-  );
+  ).filter(s => {
+    const q = search.toLowerCase();
+    // Every field is optional: Google sign-ups have no phone/roll/session yet,
+    // so unguarded access here used to throw and blank the whole page.
+    return [s.name, s.phone, s.email, s.rollNumber, s.department, s.session]
+      .some(value => value && value.toLowerCase().includes(q));
+  });
 
   const filters = [
     { key: 'all', label: 'All', count: students.length },
@@ -94,7 +95,7 @@ export default function StudentsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 border-b border-gray-100">
               <tr>
-                {['Student', 'ID', 'Department', 'Batch', 'Phone', 'Status', 'Actions'].map(h => (
+                {['Student', 'Roll No', 'Department', 'Session', 'Contact', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -111,16 +112,16 @@ export default function StudentsPage() {
                       />
                       <div className="min-w-0">
                         <p className="font-semibold text-gray-900 truncate">{student.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{student.phone || 'No phone'}</p>
+                        <p className="text-xs text-gray-400 truncate">{student.phone || student.email || 'No contact'}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 font-mono text-sm text-gray-700">{student.studentId}</td>
-                  <td className="px-6 py-4 text-gray-600">{student.department}</td>
-                  <td className="px-6 py-4 text-gray-600">{student.varsityBatch}</td>
+                  <td className="px-6 py-4 font-mono text-sm text-gray-700">{student.rollNumber || '-'}</td>
+                  <td className="px-6 py-4 text-gray-600">{student.department || '-'}</td>
+                  <td className="px-6 py-4 text-gray-600">{student.session || '-'}</td>
                   <td className="px-6 py-4">
                     <span className={`badge ${student.isPhoneVerified ? 'badge-green' : 'badge-orange'}`}>
-                      {student.phone || 'N/A'}
+                      {student.phone || 'No phone'}
                     </span>
                     <span className={`ml-1 text-xs ${student.isPhoneVerified ? 'text-green-600' : 'text-orange-500'}`}>
                       {student.isPhoneVerified ? '✓ Verified' : '✗ Unverified'}
