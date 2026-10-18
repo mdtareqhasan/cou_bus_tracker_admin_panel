@@ -2,11 +2,23 @@ import { useState, useEffect } from 'react';
 import { noticeAPI } from '../api';
 import { Plus, Trash2, X, Save, Bell, AlertCircle } from 'lucide-react';
 
+// Audience values match the backend vocabulary (STUDENT / TEACHER / ALL).
+const AUDIENCE_BADGE = {
+  ALL: { label: 'Everyone', className: 'badge-blue' },
+  STUDENT: { label: 'Students', className: 'badge-purple' },
+  TEACHER: { label: 'Teachers', className: 'badge-orange' },
+};
+
+const audienceBadge = (audience) =>
+  AUDIENCE_BADGE[audience] || { label: audience || 'Everyone', className: 'badge-blue' };
+
+const EMPTY_FORM = { title: '', body: '', audience: 'ALL', expiryHours: 24 };
+
 export default function NoticesPage() {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', body: '', expiryHours: 24 });
+  const [form, setForm] = useState(EMPTY_FORM);
 
   const load = () => {
     noticeAPI.getAll().then(res => setNotices(res.data)).catch(() => {}).finally(() => setLoading(false));
@@ -17,7 +29,7 @@ export default function NoticesPage() {
     e.preventDefault();
     await noticeAPI.create(form);
     setShowForm(false);
-    setForm({ title: '', body: '', expiryHours: 24 });
+    setForm(EMPTY_FORM);
     load();
   };
 
@@ -56,6 +68,14 @@ export default function NoticesPage() {
                 <textarea value={form.body} onChange={e => setForm({...form, body: e.target.value})} required rows={5} placeholder="Write your notice here..." className="input-field resize-none" />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">For *</label>
+                <select value={form.audience} onChange={e => setForm({...form, audience: e.target.value})} className="select-field">
+                  <option value="ALL">Everyone (Students &amp; Teachers)</option>
+                  <option value="STUDENT">Students only</option>
+                  <option value="TEACHER">Teachers only</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Expires After (hours)</label>
                 <input type="number" value={form.expiryHours} onChange={e => setForm({...form, expiryHours: parseInt(e.target.value)})} min={1} className="input-field" />
               </div>
@@ -78,6 +98,7 @@ export default function NoticesPage() {
                   <div className="flex items-center gap-3 mb-3">
                     <div className="p-2 bg-teal-50 rounded-xl"><Bell className="w-4 h-4 text-emerald-600" /></div>
                     <h3 className="font-bold text-gray-900 text-lg">{notice.title}</h3>
+                    <span className={`badge ${audienceBadge(notice.audience).className}`}>{audienceBadge(notice.audience).label}</span>
                     <span className={`badge ${isExpired ? 'badge-red' : notice.isActive ? 'badge-green' : 'badge-red'}`}>
                       {isExpired ? 'Expired' : notice.isActive ? 'Active' : 'Inactive'}
                     </span>
