@@ -8,6 +8,7 @@ import SchedulesPage from './pages/SchedulesPage';
 import NoticesPage from './pages/NoticesPage';
 import StudentsPage from './pages/StudentsPage';
 import TeachersPage from './pages/TeachersPage';
+import AcademicReferencePage from './pages/AcademicReferencePage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="notices" element={<NoticesPage />} />
             <Route path="students" element={<StudentsPage />} />
             <Route path="teachers" element={<TeachersPage />} />
+            <Route path="academic" element={<AcademicReferencePage />} />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="admins" element={<AdminUsersPage />} />
           </Route>

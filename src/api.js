@@ -90,4 +90,18 @@ export const teacherAPI = {
   delete: (id) => api.delete(`/admin/teachers/${id}`),
 };
 
+// Departments, offices and sessions behind the registration pickers.
+export const academicAPI = {
+  getAllUnits: () => api.get('/admin/academic/units'),
+  createUnit: (data) => api.post('/admin/academic/units', data),
+  updateUnit: (id, data) => api.put(`/admin/academic/units/${id}`, data),
+  toggleUnit: (id) => api.patch(`/admin/academic/units/${id}/toggle`),
+  deleteUnit: (id) => api.delete(`/admin/academic/units/${id}`),
+  getAllSessions: () => api.get('/admin/academic/sessions'),
+  createSession: (data) => api.post('/admin/academic/sessions', data),
+  updateSession: (id, data) => api.put(`/admin/academic/sessions/${id}`, data),
+  toggleSession: (id) => api.patch(`/admin/academic/sessions/${id}/toggle`),
+  deleteSession: (id) => api.delete(`/admin/academic/sessions/${id}`),
+};
+
 export default api;
