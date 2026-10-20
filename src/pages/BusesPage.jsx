@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { busAPI } from '../api';
 import { Plus, Edit2, Trash2, Link, X, Save, Search, Bus } from 'lucide-react';
 
+const EMPTY_FORM = {
+  busNumber: '', busNameBn: '', busNameEn: '', category: 'BLUE',
+  driverName: '', driverPhone: '', busImageUrl: '', trackerUrl: '',
+};
+
 export default function BusesPage() {
   const [buses, setBuses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,41 +14,73 @@ export default function BusesPage() {
   const [showTracker, setShowTracker] = useState(null);
   const [editBus, setEditBus] = useState(null);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ busNumber: '', busName: '', category: 'BLUE', driverName: '', driverPhone: '', busImageUrl: '', trackerUrl: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [trackerForm, setTrackerForm] = useState({ trackerUrl: '', expiresAt: '' });
+  const [error, setError] = useState('');
+
+  // The backend answers conflicts and validation failures with a message worth
+  // showing; anything else falls back to a generic line.
+  const reportError = (err, fallback) =>
+    setError(err?.response?.data?.message || fallback);
 
   const load = () => {
-    busAPI.getAll().then(res => setBuses(res.data)).catch(() => {}).finally(() => setLoading(false));
+    busAPI.getAll()
+      .then(b => setBuses(b.data))
+      .catch(err => setError(
+        `Could not load the buses from the server${err?.response?.status
+          ? ` (HTTP ${err.response.status})`
+          : ''}`
+      ))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (editBus) {
-      const { trackerUrl, ...busData } = form;
-      await busAPI.update(editBus.id, busData);
-      if (trackerUrl) await busAPI.updateTrackerLink(editBus.id, { trackerUrl, expiresAt: '' });
-    } else {
-      const { trackerUrl, ...busData } = form;
-      const response = await busAPI.create(busData);
-      if (trackerUrl) await busAPI.updateTrackerLink(response.data.id, { trackerUrl, expiresAt: '' });
+    setError('');
+    const { trackerUrl, ...payload } = form;
+    try {
+      if (editBus) {
+        await busAPI.update(editBus.id, payload);
+        if (trackerUrl) await busAPI.updateTrackerLink(editBus.id, { trackerUrl, expiresAt: '' });
+      } else {
+        const response = await busAPI.create(payload);
+        if (trackerUrl) await busAPI.updateTrackerLink(response.data.id, { trackerUrl, expiresAt: '' });
+      }
+      closeForm();
+      load();
+    } catch (err) {
+      reportError(err, 'Could not save the bus');
     }
-    setShowForm(false);
-    setEditBus(null);
-    setForm({ busNumber: '', busName: '', category: 'BLUE', driverName: '', driverPhone: '', busImageUrl: '', trackerUrl: '' });
-    load();
   };
 
   const handleEdit = (bus) => {
     setEditBus(bus);
-    setForm({ busNumber: bus.busNumber, busName: bus.busName || '', category: bus.category, driverName: bus.driverName || '', driverPhone: bus.driverPhone || '', busImageUrl: bus.busImageUrl || '', trackerUrl: bus.trackerUrl || '' });
+    setForm({
+      busNumber: bus.busNumber,
+      busNameBn: bus.busNameBn || '',
+      busNameEn: bus.busNameEn || '',
+      category: bus.category,
+      driverName: bus.driverName || '',
+      driverPhone: bus.driverPhone || '',
+      busImageUrl: bus.busImageUrl || '',
+      trackerUrl: bus.trackerUrl || '',
+    });
+    setError('');
     setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditBus(null);
+    setForm(EMPTY_FORM);
   };
 
   const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this bus?')) {
-      await busAPI.delete(id);
-      load();
+      setError('');
+      try { await busAPI.delete(id); load(); }
+      catch (err) { reportError(err, 'Could not delete the bus'); }
     }
   };
 
@@ -54,14 +91,16 @@ export default function BusesPage() {
     load();
   };
 
+  const q = search.toLowerCase();
   const filtered = buses.filter(b =>
-    b.busNumber.toLowerCase().includes(search.toLowerCase()) ||
-    b.category.toLowerCase().includes(search.toLowerCase())
+    [b.busNumber, b.busNameBn, b.busNameEn, b.category]
+      .filter(Boolean)
+      .some(value => value.toLowerCase().includes(q))
   );
 
   const categoryColors = {
     BLUE: 'bg-blue-100 text-blue-700 border-blue-200',
-    RED: 'bg-red-100 text-red-700 border-red-200',
+    RED: 'bg-red-100 text-red-200 border-red-200',
     TEACHER: 'bg-purple-100 text-purple-700 border-purple-200',
     OFFICER: 'bg-amber-100 text-amber-700 border-amber-200',
     STAFF: 'bg-teal-100 text-teal-700 border-teal-200',
@@ -76,11 +115,17 @@ export default function BusesPage() {
           <h1 className="text-3xl font-bold text-gray-900">Bus Management</h1>
           <p className="text-gray-500 mt-1">{buses.length} buses in fleet</p>
         </div>
-        <button onClick={() => { setShowForm(true); setEditBus(null); setForm({ busNumber: '', busName: '', category: 'BLUE', driverName: '', driverPhone: '', busImageUrl: '', trackerUrl: '' }); }}
-          className="btn-primary">
+        <button onClick={() => { closeForm(); setError(''); setShowForm(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Add Bus
         </button>
       </div>
+
+      {error && (
+        <div className="mb-6 flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+          <span>{error}</span>
+          <button onClick={() => setError('')} className="ml-auto"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-6">
@@ -93,11 +138,11 @@ export default function BusesPage() {
 
       {/* Modal Form */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="modal-overlay" onClick={closeForm}>
           <div className="modal-content max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h3 className="text-xl font-bold text-gray-900">{editBus ? 'Edit Bus' : 'Add New Bus'}</h3>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-gray-100 transition"><X className="w-5 h-5 text-gray-500" /></button>
+              <button onClick={closeForm} className="p-2 rounded-xl hover:bg-gray-100 transition"><X className="w-5 h-5 text-gray-500" /></button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -105,12 +150,6 @@ export default function BusesPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Bus Number *</label>
                   <input value={form.busNumber} onChange={e => setForm({...form, busNumber: e.target.value})} required className="input-field" placeholder="BUS 03" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Bus Name (Optional)</label>
-                  <input value={form.busName} onChange={e => setForm({...form, busName: e.target.value})} className="input-field" placeholder="e.g. Blue Star" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Category *</label>
                   <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="select-field">
@@ -120,6 +159,16 @@ export default function BusesPage() {
                     <option value="OFFICER">OFFICER</option>
                     <option value="STAFF">STAFF</option>
                   </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Bus Name (Bangla)</label>
+                  <input value={form.busNameBn} onChange={e => setForm({...form, busNameBn: e.target.value})} className="input-field" placeholder="যেমন: নীল তারা" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Bus Name (English)</label>
+                  <input value={form.busNameEn} onChange={e => setForm({...form, busNameEn: e.target.value})} className="input-field" placeholder="e.g. Blue Star" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -137,7 +186,7 @@ export default function BusesPage() {
                 <input type="url" value={form.trackerUrl} onChange={e => setForm({...form, trackerUrl: e.target.value})} className="input-field" placeholder="https://tracker.example.com/bus" />
               </div>
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+                <button type="button" onClick={closeForm} className="btn-secondary">Cancel</button>
                 <button type="submit" className="btn-primary"><Save className="w-4 h-4" /> {editBus ? 'Update' : 'Create'}</button>
               </div>
             </form>
@@ -197,7 +246,11 @@ export default function BusesPage() {
                       </div>
                       <div>
                         <span className="font-semibold text-gray-900">{bus.busNumber}</span>
-                        {bus.busName && <p className="text-xs text-gray-500">{bus.busName}</p>}
+                        {(bus.busNameBn || bus.busNameEn) && (
+                          <p className="text-xs text-gray-500">
+                            {[bus.busNameBn, bus.busNameEn].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </td>

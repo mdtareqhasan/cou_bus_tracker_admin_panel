@@ -10,11 +10,6 @@ export const formatTime = (time) => {
   return `${period} ${bengaliNumber.format(hour12)}:${bengaliNumber.format(minute).padStart(2, '০')}`;
 };
 
-export const routeParts = (route = '') => {
-  const points = route.replaceAll('â†’', '→').split(/\s*(?:→|>|->|–|-)\s*/).filter(Boolean);
-  return { startPoint: points[0] || '', endPoint: points.slice(1).join(' → ') || '' };
-};
-
 export const isTeacherBus = (schedule) =>
   ['TEACHER', 'OFFICER', 'STAFF'].includes(schedule.category?.toUpperCase());
 

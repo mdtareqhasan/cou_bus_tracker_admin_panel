@@ -1,17 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { scheduleAPI, busAPI } from '../api';
+import { scheduleAPI, busAPI, routeAPI } from '../api';
 import {
   formatTime,
   bengaliNumber,
-  routeParts,
   isTeacherBus,
 } from '../utils/format';
 import ExportPdfButton from '../components/ExportPdfButton';
 import { Plus, Edit2, Trash2, X, Save, Search, BookOpen, Clock3, CalendarDays, BusFront, UsersRound, Power } from 'lucide-react';
 
 const EMPTY_FORM = {
-  busId: '', busName: '', departureTime: '', arrivalTime: '', direction: 'UP',
-  startPoint: '', endPoint: '', days: 'SUN-THU'
+  busId: '', busNameBn: '', busNameEn: '', departureTime: '', arrivalTime: '', direction: 'UP',
+  routeId: '', days: 'SUN-THU'
 };
 
 const TIME_OPTIONS = [
@@ -20,20 +19,7 @@ const TIME_OPTIONS = [
   '19:00', '19:30', '20:00', '20:30', '21:00'
 ];
 
-const DEFAULT_ROUTE_OPTIONS = [
-  'কান্দিরপাড় > টমসমব্রিজ > ক্যাম্পাস',
-  'কান্দিরপাড় > পুলিশলাইন > ক্যাম্পাস',
-  'ধর্মপুর > কোটবাড়ি > ক্যাম্পাস',
-  'কান্দিরপাড় > ধর্মপুর > ক্যাম্পাস',
-  'কান্দিরপাড় > পদুয়ার বাজার বিশ্বরোড > ক্যাম্পাস',
-  'ক্যাম্পাস > পুলিশলাইন > কান্দিরপাড়',
-  'ক্যাম্পাস > কোটবাড়ি > ধর্মপুর',
-  'ক্যাম্পাস > টমসমব্রিজ > কান্দিরপাড়',
-  'ক্যাম্পাস > পদুয়ার বাজার বিশ্বরোড > কান্দিরপাড়',
-  'ক্যাম্পাস > ধর্মপুর > কান্দিরপাড়'
-];
-
-// formatTime, bengaliNumber, routeParts, isTeacherBus are imported from '../utils/format'.
+// formatTime, bengaliNumber, isTeacherBus are imported from '../utils/format'.
 
 function ScheduleCard({ schedule, onEdit, onDelete, onToggle }) {
   const goingToCampus = schedule.direction === 'UP';
@@ -44,10 +30,14 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-lg px-2.5 py-1 text-sm font-bold ${isInactive ? 'bg-gray-200 text-gray-500' : 'bg-teal-50 text-emerald-700'}`}>{schedule.busNumber}</span>
-            {schedule.busName && <span className="truncate text-sm text-gray-500">{schedule.busName}</span>}
+            {(schedule.busNameBn || schedule.busNameEn) && (
+              <span className="truncate text-sm text-gray-500">
+                {[schedule.busNameBn, schedule.busNameEn].filter(Boolean).join(' · ')}
+              </span>
+            )}
             {isInactive && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">নিষ্ক্রিয়</span>}
           </div>
-          <p className="mt-3 text-sm leading-6 text-gray-600">{schedule.startPoint || '—'} <span className="mx-1 text-cyan-600">→</span> {schedule.endPoint || '—'}</p>
+          <p className="mt-3 text-sm leading-6 text-gray-600">{schedule.routeNameBn || schedule.routeNameEn || '—'}</p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${goingToCampus ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
           {goingToCampus ? '↑ ক্যাম্পাস অভিমুখে' : '↓ ক্যাম্পাস থেকে'}
@@ -68,6 +58,7 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle }) {
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState([]);
   const [buses, setBuses] = useState([]);
+  const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
@@ -78,21 +69,20 @@ export default function SchedulesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
 
   const load = () => {
-    Promise.all([scheduleAPI.getAll(), busAPI.getAll()])
-      .then(([s, b]) => {
+    Promise.all([scheduleAPI.getAll(), busAPI.getAll(), routeAPI.getAll()])
+      .then(([s, b, r]) => {
         setSchedules(s.data);
         setBuses(b.data);
+        setRoutes(r.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
-  const routes = [...new Set([...DEFAULT_ROUTE_OPTIONS, ...buses.map(bus => bus.route).filter(Boolean)])];
-  const selectedRoute = routes.find(route => {
-    const { startPoint, endPoint } = routeParts(route);
-    return startPoint === form.startPoint && endPoint === form.endPoint;
-  }) || '';
+  // Route options come from the routes table; schedules reference them by id
+  // (a bus can run different routes at different times of day). Retired routes
+  // stay in the list so an existing schedule still round-trips, marked as such.
   const busesWithLinks = buses.filter(bus => bus.trackerUrl);
   const selectedBus = buses.find(bus => String(bus.id) === String(form.busId));
   const selectedBusTrackerUrl = selectedBus?.trackerUrl || '';
@@ -111,7 +101,12 @@ export default function SchedulesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const data = { ...form, busId: Number(form.busId), arrivalTime: form.arrivalTime || null };
+    const data = {
+      ...form,
+      busId: Number(form.busId),
+      routeId: Number(form.routeId),
+      arrivalTime: form.arrivalTime || null
+    };
     if (editingSchedule) await scheduleAPI.update(editingSchedule.id, data);
     else await scheduleAPI.create(data);
     setDayGroup(data.days === 'FRI-SAT' ? 'WEEKEND' : 'WEEKDAY');
@@ -122,9 +117,11 @@ export default function SchedulesPage() {
   const handleEdit = (schedule) => {
     setEditingSchedule(schedule);
     setForm({
-      busId: String(schedule.busId), busName: schedule.busName || '', departureTime: schedule.departureTime || '',
+      busId: String(schedule.busId),
+      busNameBn: schedule.busNameBn || '', busNameEn: schedule.busNameEn || '',
+      departureTime: schedule.departureTime || '',
       arrivalTime: schedule.arrivalTime || '', direction: schedule.direction || 'UP',
-      startPoint: schedule.startPoint || '', endPoint: schedule.endPoint || '', days: schedule.days || 'SUN-THU'
+      routeId: schedule.routeId != null ? String(schedule.routeId) : '', days: schedule.days || 'SUN-THU'
     });
     setShowForm(true);
   };
@@ -142,7 +139,7 @@ export default function SchedulesPage() {
   };
 
   const filtered = schedules.filter(s =>
-    [s.busNumber, s.category, s.startPoint, s.endPoint].filter(Boolean)
+    [s.busNumber, s.category, s.routeNameBn, s.routeNameEn].filter(Boolean)
       .some(value => value.toLowerCase().includes(search.toLowerCase()))
   ).filter(s => {
     if (statusFilter === 'ACTIVE') return s.isActive !== false;
@@ -223,8 +220,12 @@ export default function SchedulesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">বাসের নাম</label>
-                  <input value={form.busName} onChange={e => setForm({ ...form, busName: e.target.value })} className="input-field" placeholder="ঐচ্ছিক" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">বাসের নাম (বাংলা)</label>
+                  <input value={form.busNameBn} onChange={e => setForm({ ...form, busNameBn: e.target.value })} className="input-field" placeholder="ঐচ্ছিক" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">বাসের নাম (English)</label>
+                  <input value={form.busNameEn} onChange={e => setForm({ ...form, busNameEn: e.target.value })} className="input-field" placeholder="Optional" />
                 </div>
               </div>
               <div>
@@ -237,10 +238,19 @@ export default function SchedulesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">রুট *</label>
-                <select value={selectedRoute} onChange={e => setForm({ ...form, ...routeParts(e.target.value) })} required className="select-field">
+                <select value={form.routeId} onChange={e => setForm({ ...form, routeId: e.target.value })} required className="select-field">
                   <option value="">রুট নির্বাচন করুন</option>
-                  {routes.map(route => <option key={route} value={route}>{route}</option>)}
+                  {routes.map(route => (
+                    <option key={route.id} value={route.id}>
+                      {route.nameBn} — {route.nameEn}{route.isActive === false ? ' (নিষ্ক্রিয়)' : ''}
+                    </option>
+                  ))}
                 </select>
+                {routes.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    কোনো রুট নেই। <a href="/routes" className="underline font-medium">রুট</a> ট্যাব থেকে একটি যোগ করুন।
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -311,11 +321,11 @@ export default function SchedulesPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map(s => (
                 <tr key={s.id} className="table-row">
-                  <td className="px-6 py-4"><span className="font-semibold text-gray-900">{s.busNumber}</span>{s.busName && <span className="text-xs text-gray-500 ml-1">({s.busName})</span>}<span className="text-xs text-gray-400 ml-1">({s.category})</span></td>
+                  <td className="px-6 py-4"><span className="font-semibold text-gray-900">{s.busNumber}</span>{(s.busNameBn || s.busNameEn) && <span className="text-xs text-gray-500 ml-1">({[s.busNameBn, s.busNameEn].filter(Boolean).join(' · ')})</span>}<span className="text-xs text-gray-400 ml-1">({s.category})</span></td>
                   <td className="px-6 py-4"><span className={`badge ${s.direction === 'UP' ? 'badge-blue' : 'badge-green'}`}>{s.direction === 'UP' ? 'ক্যাম্পাস অভিমুখে' : 'ক্যাম্পাস থেকে'}</span></td>
                   <td className="px-6 py-4 text-gray-700">{formatTime(s.departureTime)}</td>
                   <td className="px-6 py-4 text-gray-700">{formatTime(s.arrivalTime)}</td>
-                  <td className="px-6 py-4 text-gray-600">{s.startPoint || '-'} → {s.endPoint || '-'}</td>
+                  <td className="px-6 py-4 text-gray-600">{s.routeNameBn || s.routeNameEn || '-'}</td>
                   <td className="px-6 py-4"><span className="badge bg-gray-100 text-gray-600">{s.days}</span></td>
                   <td className="px-6 py-4"><span className={`badge ${s.isActive !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{s.isActive !== false ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</span></td>
                   <td className="px-6 py-4"><div className="flex items-center gap-1"><button onClick={() => handleToggle(s.id)} className={`btn-icon ${s.isActive !== false ? 'text-emerald-600 hover:bg-teal-50' : 'text-red-600 hover:bg-red-50'}`} title={s.isActive !== false ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}><Power className="w-4 h-4" /></button><button onClick={() => handleEdit(s)} className="btn-icon hover:bg-teal-50 text-emerald-600" title="সম্পাদনা"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDelete(s.id)} className="btn-icon hover:bg-red-50 text-red-600" title="মুছুন"><Trash2 className="w-4 h-4" /></button></div></td>

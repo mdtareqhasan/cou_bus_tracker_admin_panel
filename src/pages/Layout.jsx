@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Bus, Users, GraduationCap, BookOpen, Bell, LogOut, Menu, X, ShieldCheck, UserCircle2, Building2 } from 'lucide-react';
+import { LayoutDashboard, Bus, Route as RouteIcon, Users, GraduationCap, BookOpen, Bell, LogOut, Menu, X, ShieldCheck, UserCircle2, Building2 } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/buses', icon: Bus, label: 'Buses' },
+  { to: '/routes', icon: RouteIcon, label: 'Routes' },
   { to: '/schedules', icon: BookOpen, label: 'Schedules' },
   { to: '/notices', icon: Bell, label: 'Notices' },
   { to: '/students', icon: GraduationCap, label: 'Students' },

@@ -69,9 +69,9 @@ const renderTable = (items) => {
   const rows = sortGroup(items)
     .map((s, i) => {
       const bg = i % 2 === 0 ? WHITE : GRAY_100;
-      const busName = (s.busName ?? '').toString().trim();
+      const busName = [s.busNameBn, s.busNameEn].filter(Boolean).join(' · ');
       const busCell = busName ? `${s.busNumber} (${busName})` : s.busNumber || DASH;
-      const route = `${s.startPoint || DASH} \u2192 ${s.endPoint || DASH}`;
+      const route = s.routeNameBn || s.routeNameEn || DASH;
       const arrival = s.arrivalTime ? formatTime(s.arrivalTime) : DASH;
       const isOff = s.isActive === false;
       return `

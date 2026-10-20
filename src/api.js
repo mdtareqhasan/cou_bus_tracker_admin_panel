@@ -68,6 +68,17 @@ export const scheduleAPI = {
   toggle: (id) => api.patch(`/admin/schedules/${id}/toggle`),
 };
 
+// Bus routes (the reference table schedules point at by FK — a bus runs a
+// different route at different times of day).
+export const routeAPI = {
+  getAll: () => api.get('/admin/routes'),
+  getPublic: () => api.get('/routes'),
+  create: (data) => api.post('/admin/routes', data),
+  update: (id, data) => api.put(`/admin/routes/${id}`, data),
+  delete: (id) => api.delete(`/admin/routes/${id}`),
+  toggle: (id) => api.patch(`/admin/routes/${id}/toggle`),
+};
+
 export const noticeAPI = {
   getAll: () => api.get('/admin/notices'),
   create: (data) => api.post('/admin/notices', data),

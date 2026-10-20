@@ -4,6 +4,7 @@ import Layout_page from './pages/Layout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import BusesPage from './pages/BusesPage';
+import RoutesPage from './pages/RoutesPage';
 import SchedulesPage from './pages/SchedulesPage';
 import NoticesPage from './pages/NoticesPage';
 import StudentsPage from './pages/StudentsPage';
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute><Layout_page /></ProtectedRoute>}>
             <Route index element={<DashboardPage />} />
             <Route path="buses" element={<BusesPage />} />
+            <Route path="routes" element={<RoutesPage />} />
             <Route path="schedules" element={<SchedulesPage />} />
             <Route path="notices" element={<NoticesPage />} />
             <Route path="students" element={<StudentsPage />} />
