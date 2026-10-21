@@ -77,6 +77,10 @@ export const routeAPI = {
   update: (id, data) => api.put(`/admin/routes/${id}`, data),
   delete: (id) => api.delete(`/admin/routes/${id}`),
   toggle: (id) => api.patch(`/admin/routes/${id}/toggle`),
+  // Opposite-direction pairing: linking is reciprocal (the backend updates
+  // both rows) and replaces any existing pair on either side.
+  linkOpposite: (id, oppositeId) => api.put(`/admin/routes/${id}/opposite/${oppositeId}`),
+  unlinkOpposite: (id) => api.delete(`/admin/routes/${id}/opposite`),
 };
 
 export const noticeAPI = {

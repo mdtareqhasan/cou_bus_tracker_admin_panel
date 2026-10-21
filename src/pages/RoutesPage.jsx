@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { routeAPI } from '../api';
-import { Plus, Edit2, Trash2, X, Save, Search, Route, CheckCircle, XCircle, AlertCircle, MapPin } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Search, Route, CheckCircle, XCircle, AlertCircle, MapPin, Link2, Unlink } from 'lucide-react';
 
 const EMPTY_FORM = { nameBn: '', nameEn: '' };
 
@@ -12,6 +12,8 @@ export default function RoutesPage() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
+  const [pairRoute, setPairRoute] = useState(null);
+  const [oppositeChoice, setOppositeChoice] = useState('');
 
   // The backend answers conflicts (duplicate names, still-in-use deletes) with
   // a message worth showing; anything else falls back to a generic line.
@@ -70,6 +72,63 @@ export default function RoutesPage() {
     setError('');
     try { await routeAPI.delete(id); load(); }
     catch (err) { reportError(err, 'Could not delete the route'); }
+  };
+
+  // ---- Opposite-direction pairing -------------------------------------
+  // A route and its return direction are one corridor shown as a single card
+  // in the rider app; the backend keeps both rows pointing at each other.
+  const partnerOf = (route) =>
+    routes.find(r => r.id === route.oppositeRouteId) || null;
+
+  const openPairing = (route) => {
+    setPairRoute(route);
+    setOppositeChoice('');
+    setError('');
+  };
+
+  const closePairing = () => {
+    setPairRoute(null);
+    setOppositeChoice('');
+  };
+
+  const handleLink = async (e) => {
+    e.preventDefault();
+    const chosen = routes.find(r => r.id === Number(oppositeChoice));
+    if (!chosen) return;
+
+    // Linking silently unlinks whatever each side was paired with before, so
+    // ask first whenever an existing pair would be replaced.
+    const myPartner = partnerOf(pairRoute);
+    const theirPartner = partnerOf(chosen);
+    const replacesMine = myPartner && myPartner.id !== chosen.id;
+    const replacesTheirs = theirPartner && theirPartner.id !== pairRoute.id;
+    if (replacesMine || replacesTheirs) {
+      const reasons = [];
+      if (replacesMine) reasons.push(`"${myPartner.nameEn}" is currently paired with "${pairRoute.nameEn}"`);
+      if (replacesTheirs) reasons.push(`"${chosen.nameEn}" is currently paired with "${theirPartner.nameEn}"`);
+      if (!confirm(`${reasons.join(' and ')}.\n\nLinking will replace the existing pairing(s). Continue?`)) return;
+    }
+
+    setError('');
+    try {
+      await routeAPI.linkOpposite(pairRoute.id, chosen.id);
+      closePairing();
+      load();
+    } catch (err) {
+      reportError(err, 'Could not link the routes');
+    }
+  };
+
+  const handleUnlink = async (route) => {
+    const partner = partnerOf(route);
+    if (!confirm(`Unlink "${route.nameEn}"${partner ? ` from "${partner.nameEn}"` : ''}? Both routes become standalone again.`)) return;
+    setError('');
+    try {
+      await routeAPI.unlinkOpposite(route.id);
+      // The pairing modal edits a snapshot — close it rather than show stale pair info.
+      if (pairRoute?.id === route.id) closePairing();
+      load();
+    } catch (err) { reportError(err, 'Could not unlink the routes'); }
   };
 
   const q = search.toLowerCase();
@@ -139,13 +198,60 @@ export default function RoutesPage() {
         </div>
       )}
 
+      {/* Link Opposite Modal */}
+      {pairRoute && (
+        <div className="modal-overlay" onClick={closePairing}>
+          <div className="modal-content max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900">Link Opposite Direction</h3>
+              <button onClick={closePairing} className="p-2 rounded-xl hover:bg-gray-100 transition"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <form onSubmit={handleLink} className="p-6 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Route</p>
+                <p className="font-semibold text-gray-900">{pairRoute.nameEn}</p>
+                <p className="text-sm text-gray-500">{pairRoute.nameBn}</p>
+              </div>
+              {pairRoute.oppositeRouteId && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-teal-50 text-emerald-700 text-sm">
+                  <Link2 className="w-4 h-4 shrink-0" />
+                  <span>Currently paired with {partnerOf(pairRoute)?.nameEn || `route #${pairRoute.oppositeRouteId}`}</span>
+                  <button type="button" onClick={() => { handleUnlink(pairRoute); }} className="ml-auto underline font-medium">Unlink</button>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Opposite direction route</label>
+                <select value={oppositeChoice} onChange={e => setOppositeChoice(e.target.value)} required className="select-field">
+                  <option value="">Choose a route…</option>
+                  {routes
+                    .filter(r => r.id !== pairRoute.id)
+                    .sort((a, b) => (a.nameEn || '').localeCompare(b.nameEn || ''))
+                    .map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.nameEn} — {r.nameBn}{r.isActive ? '' : ' (retired)'}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Pairing updates both routes so the rider app shows them as one two-way route. If either is already paired, the old pairing is replaced.
+                </p>
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+                <button type="button" onClick={closePairing} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={!oppositeChoice} className="btn-primary disabled:opacity-50"><Link2 className="w-4 h-4" /> Link</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Routes Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 border-b border-gray-100">
               <tr>
-                {['Route (Bangla)', 'Route (English)', 'Status', 'Actions'].map(h => (
+                {['Route (Bangla)', 'Route (English)', 'Status', 'Opposite Direction', 'Active Schedules', 'Actions'].map(h => (
                   <th key={h} className="text-left px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -168,8 +274,30 @@ export default function RoutesPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
+                    {route.oppositeRouteId ? (
+                      partnerOf(route) ? (
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-medium text-gray-900">{partnerOf(route).nameEn}</p>
+                            <p className="text-xs text-gray-400">{partnerOf(route).nameBn}</p>
+                          </div>
+                          <button onClick={() => handleUnlink(route)} className="btn-icon hover:bg-red-50 text-red-600" title="Unlink opposite"><Unlink className="w-4 h-4" /></button>
+                        </div>
+                      ) : (
+                        <span className="badge badge-yellow">Linked (#{route.oppositeRouteId})</span>
+                      )
+                    ) : (
+                      <span className="badge bg-gray-100 text-gray-500">Not paired</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-gray-600">
+                    {typeof route.activeScheduleCount === 'number' ? route.activeScheduleCount : '—'}
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-1">
                       <button onClick={() => handleEdit(route)} className="btn-icon hover:bg-teal-50 text-emerald-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => openPairing(route)} className="btn-icon hover:bg-teal-50 text-teal-600"
+                        title={route.oppositeRouteId ? 'Change opposite direction' : 'Link opposite direction'}><Link2 className="w-4 h-4" /></button>
                       <button onClick={() => handleToggle(route.id)}
                         className={`btn-icon ${route.isActive ? 'hover:bg-green-50 text-green-600' : 'hover:bg-red-50 text-red-600'}`}
                         title={route.isActive ? 'Deactivate (hide from bus assignment)' : 'Re-activate'}>
