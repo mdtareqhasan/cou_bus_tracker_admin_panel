@@ -242,7 +242,7 @@ export default function SchedulesPage() {
                   <option value="">রুট নির্বাচন করুন</option>
                   {routes.map(route => (
                     <option key={route.id} value={route.id}>
-                      {route.nameBn} — {route.nameEn}{route.isActive === false ? ' (নিষ্ক্রিয়)' : ''}
+                      {route.nameBn}{route.isActive === false ? ' (নিষ্ক্রিয়)' : ''}
                     </option>
                   ))}
                 </select>
